@@ -138,6 +138,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      edit_booking: {
+        Args: {
+          _branch: string
+          _cap: number
+          _date: string
+          _id: string
+          _name: string
+          _new_phone: string
+          _owner_phone: string
+          _service: string
+          _time: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

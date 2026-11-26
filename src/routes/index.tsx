@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { askVaultBot } from "@/lib/vaultbot.functions";
-import { getSlots, getMine, requestOtp, verifyOtp, bookSlot, payDeposit, cancelBooking, requestHuman, sendBookingOtp } from "@/lib/bookings.functions";
+import { getSlots, getMine, requestOtp, verifyOtp, bookSlot, payDeposit, cancelBooking, requestHuman, sendBookingOtp, editBooking } from "@/lib/bookings.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -73,7 +73,7 @@ function parseRequest(l: string, now = new Date()) {
   } }
   return { service, branch, date, dayNote };
 }
-const MENU = ["Book with dropdowns", "Book appointment", "My bookings", "View services", "Packages", "FAQs", "Talk to a human"];
+const MENU = ["Book with dropdowns", "Book appointment", "Manage my appointment", "My bookings", "View services", "Packages", "FAQs", "Talk to a human"];
 
 function Index() {
   const [msgs, setMsgs] = useState<Msg[]>([
@@ -82,6 +82,8 @@ function Index() {
   const [input, setInput] = useState("");
   const [draft, setDraft] = useState<Draft>({});
   const [form, setForm] = useState(false);
+  const [editing, setEditing] = useState<Booking | null>(null);
+  const [pending, setPending] = useState<(Booking & { cap: number }) | null>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
@@ -93,8 +95,8 @@ function Index() {
     setDraft({ phone, step: "manage" });
     if (!mine.length) return bot("No bookings found for this number.", MENU);
     bot(`⭐ Vault loyalty (simulated): ${mine.length * 50 + mine.filter((b) => b.paid).length * 10} points — 500 points = R50 off.`);
-    bot(mine.map((b) => `#${b.id} ${b.service} — ${b.branch}, ${b.date} ${b.time} ${b.paid ? "(deposit paid)" : "(deposit due)"}`).join("\n"),
-      mine.flatMap((b) => [`Cancel #${b.id}`, `Reschedule #${b.id}`]).concat("Menu"));
+    bot(mine.map((b) => `Ref ${b.id} · ${b.name}\n${b.service} — ${b.branch}, ${b.date} (${visitDateLabel(b.date)}) ${b.time}\nStatus: Confirmed · R100 deposit ${b.paid ? "paid" : "due"}`).join("\n\n"),
+      mine.flatMap((b) => [`Edit #${b.id}`, `Cancel #${b.id}`, `Reschedule #${b.id}`]).concat("Menu"));
   }
 
   function handle(raw: string) {
@@ -166,7 +168,27 @@ function Index() {
         case "pay":
           if (l.startsWith("pay deposit")) { const pr = await payDeposit({ data: { id: d.id!, token: session } }); setDraft({}); bot("💳 Simulated payment successful. Deposit received — see you soon!"); return bot(pr.msg, MENU); }
           setDraft({}); return bot("No problem — the deposit is due 24 hours before your visit.", MENU);
+        case "editresend": {
+          if (!pending) break;
+          const r = await requestOtp({ data: { ref: pending.id } });
+          if (!r.ok) return bot(r.reason, ["Send code", "Menu"]);
+          setDraft({ step: "editotp" });
+          return bot(`📱 SIMULATED SMS to ${r.masked}: your Vault code is ${r.code}. Enter it to save your changes (expires in 5 minutes, 3 attempts).`);
+        }
+        case "editotp": {
+          if (!pending) break;
+          const r = await verifyOtp({ data: { ref: pending.id, code: t } });
+          if (!r.ok) return bot(r.reason, r.reason.startsWith("Incorrect") ? undefined : MENU);
+          session = r.token;
+          const er = await editBooking({ data: { ...pending, token: session } });
+          if (!er.ok) { setDraft({ step: "manage" }); return bot(er.msg, [`Edit #${pending.id}`, "Menu"]); }
+          setPending(null);
+          bot(`Your appointment has been successfully updated! Your new booking details are confirmed. Thank you for choosing The Beauty Vault.\n\nRef ${pending.id} · ${pending.name}, ${pending.phone}\n${pending.service} — ${pending.branch}, ${pending.date} at ${pending.time}\n${er.msg}`);
+          return listMine("");
+        }
         case "manage": {
+          const e = t.match(/^edit #(BV\d+)$/i); const eb = e && ((await getMine({ data: { token: session } })) as Booking[]).find((x) => x.id === e[1]);
+          if (eb) { setEditing(eb); return bot("Update your appointment below 👇"); }
           const m = t.match(/^(cancel|reschedule) #(BV\d+)$/i); const b = m && ((await getMine({ data: { token: session } })) as Booking[]).find((x) => x.id === m[2]);
           if (!m || !b) break;
           if (m[1]!.toLowerCase() === "cancel") { const cr = await cancelBooking({ data: { id: b.id, token: session } }); bot(`Cancelled #${b.id}.${b.paid ? " Deposit refund simulated." : ""}\n${cr.msg}`); return listMine(d.phone!); }
@@ -193,7 +215,7 @@ function Index() {
         if (!free.length) { setDraft({ ...nd, step: "date" }); return bot(`${day} is fully booked at ${req.branch}. Try another day.`, DAYS); }
         setDraft({ ...nd, date: day, step: "time" }); return bot(`${req.service} at ${req.branch} on ${day}. Available times:`, free);
       }
-      if (l.includes("my booking") || l.includes("cancel") || l.includes("reschedul")) { setDraft({ step: "lookup" }); return bot("Please enter your booking reference (e.g. BV12345). I'll send a verification code to the number on the booking."); }
+      if (l.includes("my booking") || l.includes("manage") || l.includes("cancel") || l.includes("reschedul")) { setDraft({ step: "lookup" }); return bot("Please enter your booking reference (e.g. BV12345). I'll send a verification code to the number on the booking."); }
       if (l.includes("service") || l.includes("price")) return bot(Object.entries(SERVICES).map(([k, v]) => `${k}: ${v.join(", ")}`).join("\n\n"), ["Book appointment"]);
       if (l.includes("package")) return bot("Signature packages:\n" + PACKAGES.map((p) => "• " + p).join("\n"), ["Book appointment"]);
       if (l.includes("human") || l.includes("agent")) { setDraft({ step: "h_reason" }); return bot("I'll connect you with a consultant. What's the reason?", ["Booking problem", "Payment question", "Complaint", "Product advice"]); }
@@ -232,6 +254,14 @@ function Index() {
             </div>
           ))}
           {form && <DropdownBooking onClose={() => setForm(false)} onResult={(t) => bot(t, MENU)} />}
+          {editing && <EditBooking b={editing} onClose={() => setEditing(null)} onConfirm={async (nb) => {
+            setEditing(null);
+            setPending(nb);
+            const r = await requestOtp({ data: { ref: nb.id } });
+            if (!r.ok) { setDraft({ step: "editresend" }); return bot(r.reason, ["Send code", "Menu"]); }
+            setDraft({ step: "editotp" });
+            bot(`📱 SIMULATED SMS to ${r.masked}: your Vault code is ${r.code}. Enter it to save your changes (expires in 5 minutes, 3 attempts).`);
+          }} />}
           <div ref={end} />
         </div>
         <form onSubmit={(e) => { e.preventDefault(); handle(input); }} className="p-3 border-t border-border flex gap-2">
@@ -299,6 +329,51 @@ function DropdownBooking({ onClose, onResult }: { onClose: () => void; onResult:
           <input aria-label="Mobile number" placeholder="SA mobile e.g. 0821234567" className={fld} value={f.phone} onChange={(e) => setF((o) => ({ ...o, phone: e.target.value }))} />
           <input aria-label="Email" type="email" placeholder="Email (optional)" className={fld} value={f.email} onChange={(e) => setF((o) => ({ ...o, email: e.target.value }))} />
           <button disabled={busy || !complete} onClick={verify} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium disabled:bg-muted disabled:text-muted-foreground">{busy ? "Sending…" : "Send verification code"}</button>
+        </div>
+      )}
+      <button onClick={onClose} className="text-xs underline text-muted-foreground">Close</button>
+    </div>
+  );
+}
+
+const priceOf = (svc: string) => { const p = PRICED.find((x) => x.split(" — ")[0] === svc)?.split(" — ")[1]; return p ? Number(p.replace(/[^\d]/g, "")) : undefined; };
+
+function EditBooking({ b, onClose, onConfirm }: { b: Booking; onClose: () => void; onConfirm: (nb: Booking & { cap: number }) => void }) {
+  const [f, setF] = useState({ branch: b.branch, service: b.service, date: visitDateLabel(b.date), time: b.time, name: b.name, phone: b.phone });
+  const [review, setReview] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => { void refresh().then(() => tick((n) => n + 1)); }, [f.branch, f.date]);
+  const label = labelFor(f.date);
+  const free = f.branch && label ? dayTimes(label).filter((x) => !taken({ branch: f.branch, date: label }, b.id).includes(x)) : [];
+  const set = (k: keyof typeof f, v: string) => { setReview(false); setF((o) => ({ ...o, [k]: v, ...(k === "branch" || k === "date" ? { time: "" } : {}) })); };
+  const phone = f.phone.replace(/\s/g, "");
+  const ok = f.branch && f.service && label && f.time && free.includes(f.time) && f.name.trim().length >= 2 && /^0[6-8]\d{8}$/.test(phone);
+  const svcNames = [...new Set([b.service, ...PRICED.map((x) => x.split(" — ")[0]!)])];
+  const oldP = priceOf(b.service), newP = priceOf(f.service);
+  const diff = oldP !== undefined && newP !== undefined ? newP - oldP : undefined;
+  const fld = "w-full h-11 bg-muted rounded-xl px-4 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-60";
+  const lbl = "block space-y-1.5 text-sm font-medium text-foreground";
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 space-y-4 max-w-md">
+      <div><h2 className="text-xl font-semibold text-foreground">Edit appointment {b.id}</h2><p className="text-sm text-muted-foreground">Change anything below, then review.</p></div>
+      <label className={lbl}><span>Branch</span><select aria-label="Edit branch" className={fld} value={f.branch} onChange={(e) => set("branch", e.target.value)}>{BRANCHES.map((x) => <option key={x}>{x}</option>)}</select></label>
+      <label className={lbl}><span>Service</span><select aria-label="Edit service" className={fld} value={f.service} onChange={(e) => set("service", e.target.value)}>{svcNames.map((x) => <option key={x}>{x}</option>)}</select></label>
+      <label className={lbl}><span>Appointment date</span><input aria-label="Edit date" type="date" min={visitDateLabel("Today")} className={fld} value={f.date} onChange={(e) => set("date", e.target.value)} /></label>
+      {f.date && !label && <p className="text-xs text-muted-foreground">Bookings are open for today, tomorrow and this Saturday only.</p>}
+      <label className={lbl}><span>Available appointment time</span><select aria-label="Edit time" className={fld} value={f.time} disabled={!free.length} onChange={(e) => set("time", e.target.value)}><option value="">{f.branch && label && !free.length ? "Fully booked" : "Select available time"}</option>{free.map((x) => <option key={x}>{x}</option>)}</select></label>
+      <label className={lbl}><span>Name</span><input aria-label="Edit name" className={fld} value={f.name} onChange={(e) => set("name", e.target.value)} /></label>
+      <label className={lbl}><span>SA mobile number</span><input aria-label="Edit phone" className={fld} value={f.phone} onChange={(e) => set("phone", e.target.value)} /></label>
+      {!review ? (
+        <button disabled={!ok} onClick={() => setReview(true)} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium disabled:bg-muted disabled:text-muted-foreground">Review changes</button>
+      ) : (
+        <div className="space-y-3">
+          <div className="bg-secondary rounded-xl p-3 text-sm space-y-1">
+            <p className="font-medium">Original</p><p>{b.service} — {b.branch}, {b.date} at {b.time} · {b.name}, {b.phone}</p>
+            <p className="font-medium pt-1">New</p><p>{f.service} — {f.branch}, {label} at {f.time} · {f.name.trim()}, {phone}</p>
+            <p className="pt-1">Price difference: {diff === undefined ? "n/a" : diff === 0 ? "none" : `${diff > 0 ? "+" : "−"}R${Math.abs(diff).toLocaleString("en-ZA")}`}</p>
+            <p>Deposit: R100 {b.paid ? "already paid — carries over" : "still due"} (no adjustment)</p>
+          </div>
+          <button onClick={() => onConfirm({ ...b, service: f.service, branch: f.branch, date: label!, time: f.time, name: f.name.trim(), phone, cap: capacity({ branch: f.branch, date: label! }) })} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium">Confirm changes</button>
         </div>
       )}
       <button onClick={onClose} className="text-xs underline text-muted-foreground">Close</button>

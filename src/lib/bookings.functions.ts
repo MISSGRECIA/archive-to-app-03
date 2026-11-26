@@ -80,6 +80,25 @@ export const cancelBooking = createServerFn({ method: "POST" })
     return { msg };
   });
 
+type Edit = { id: string; service: string; branch: string; date: string; time: string; name: string; phone: string; cap: number; token: string };
+export const editBooking = createServerFn({ method: "POST" })
+  .inputValidator((i: Edit) => {
+    if (i.cap < 1 || i.cap > 5 || !/^BV\d{5}$/.test(i.id) || !phoneOk(i.phone)) throw new Error("invalid");
+    return { ...i, name: clean(i.name, 60), service: clean(i.service, 60) };
+  })
+  .handler(async ({ data: d }) => {
+    const sb = await db(); const owner = await phoneFor(sb, d.token);
+    if (d.name.length < 2) throw new Error("invalid");
+    const { data: old } = await sb.from("bookings").select("service, branch, date, time").eq("id", d.id).eq("phone", owner).maybeSingle();
+    if (!old) return { ok: false, msg: "Booking not found." };
+    const { data, error } = await sb.rpc("edit_booking", { _id: d.id, _service: d.service, _branch: d.branch, _date: d.date, _time: d.time, _name: d.name, _new_phone: d.phone, _owner_phone: owner, _cap: d.cap });
+    if (error) throw new Error("Update failed. Please try again.");
+    if (data !== true) return { ok: false, msg: "That time was just taken. Please pick another." };
+    await sb.from("bookings").update({ visit_date: visitDate(d.date), reminded_at: null }).eq("id", d.id);
+    const msg = await notify(sb, d.id, "edited", `Booking ${d.id} changed from ${old.service}, ${old.branch}, ${old.date} ${old.time} to ${d.service}, ${d.branch}, ${d.date} ${d.time}.`);
+    return { ok: true, msg };
+  });
+
 // Simulated OTP delivery: the code is returned for on-screen display instead of a real SMS.
 export const requestOtp = createServerFn({ method: "POST" })
   .inputValidator((i: { ref: string }) => ({ ref: clean(i.ref, 12).toUpperCase() }))
