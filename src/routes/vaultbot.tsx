@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import luxuryBackground from "@/assets/vaultbot-luxury.asset.json";
 import { askVaultBot } from "@/lib/vaultbot.functions";
 import { getSlots, getMine, requestOtp, verifyOtp, bookSlot, payDeposit, cancelBooking, requestHuman, sendBookingOtp, editBooking } from "@/lib/bookings.functions";
 
@@ -82,11 +84,11 @@ function Index() {
   ]);
   const [input, setInput] = useState("");
   const [draft, setDraft] = useState<Draft>({});
-  const [form, setForm] = useState(false);
+  const [form, setForm] = useState(true);
   const [editing, setEditing] = useState<Booking | null>(null);
   const [pending, setPending] = useState<(Booking & { cap: number }) | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  useEffect(() => { if (msgs.length > 1) end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [msgs]);
 
   const bot = (text: string, chips?: string[]) => setMsgs((m) => [...m, { from: "bot", text, ...(chips ? { chips } : {}) }]);
   const pick = (t: string, opts: string[]) => opts.find((o) => o.toLowerCase() === t.toLowerCase());
@@ -232,19 +234,21 @@ function Index() {
   }
 
   return (
-    <main className="min-h-screen bg-background flex flex-col items-center">
-      <header className="w-full max-w-2xl px-5 pt-8 pb-4 text-center">
-        <h1 className="font-display text-4xl tracking-wide text-foreground">The Beauty Vault</h1>
-        <p className="mt-1 text-sm tracking-[0.2em] uppercase text-primary">Your Beauty. Your Time. Your Vault.</p>
-        <Link to="/services" className="mt-2 inline-block text-xs underline text-muted-foreground">Services & packages</Link>
+    <main className="vaultbot-page min-h-screen flex flex-col items-center">
+      <img src={luxuryBackground.url} alt="" aria-hidden="true" className="vaultbot-backdrop" />
+      <header className="vaultbot-brandbar text-center">
+        <Link to="/" className="font-display text-xl text-foreground">The Beauty Vault</Link>
+        <p className="mt-1 text-[10px] tracking-[0.2em] uppercase text-muted-foreground">Your Beauty. Your Time. Your Vault.</p>
       </header>
-      <section className="flex-1 w-full max-w-2xl flex flex-col bg-card border border-border sm:rounded-2xl shadow-[var(--shadow-soft)] overflow-hidden sm:mb-8">
-        <div className="px-5 pt-6 pb-4 border-b border-border flex flex-col items-center text-center">
-          <div className="h-14 w-14 rounded-full bg-primary text-primary-foreground grid place-items-center font-display text-2xl">V</div>
-          <p className="mt-2 font-display text-2xl text-foreground">VaultBot</p>
-          <p className="text-xs tracking-wide text-muted-foreground">Your Virtual Beauty Concierge</p>
+      <section className="vaultbot-panel w-full flex flex-col bg-card border border-border overflow-hidden">
+        <div className="vaultbot-heading flex flex-col items-center text-center">
+          <div className="vaultbot-logo grid place-items-center font-display">V</div>
+          <h1 className="mt-2 font-display text-4xl text-foreground">VaultBot</h1>
+          <p className="mt-1 text-xs tracking-wide text-muted-foreground">Your Virtual Beauty Concierge</p>
+          <div className="vaultbot-gold-rule" aria-hidden="true">✦</div>
         </div>
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-[60vh]">
+        {form && <DropdownBooking onClose={() => setForm(false)} onResult={(t) => bot(t, MENU)} />}
+        <div className="vaultbot-chat p-5 space-y-4">
           {msgs.map((m, i) => (
             <div key={i} className={m.from === "me" ? "flex justify-end" : ""}>
               <div className={`whitespace-pre-line max-w-[85%] text-sm leading-relaxed ${m.from === "me" ? "bg-foreground text-background rounded-2xl rounded-br-sm px-4 py-2" : "text-foreground"}`}>{m.text}</div>
@@ -266,7 +270,6 @@ function Index() {
               )}
             </div>
           ))}
-          {form && <DropdownBooking onClose={() => setForm(false)} onResult={(t) => bot(t, MENU)} />}
           {editing && <EditBooking b={editing} onClose={() => setEditing(null)} onConfirm={async (nb) => {
             setEditing(null);
             setPending(nb);
@@ -278,10 +281,11 @@ function Index() {
           <div ref={end} />
         </div>
         <form onSubmit={(e) => { e.preventDefault(); handle(input); }} className="p-3 border-t border-border flex gap-2">
-          <input autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask VaultBot…" className="flex-1 bg-muted rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-          <button className="rounded-full bg-primary text-primary-foreground px-5 text-sm font-medium">Send</button>
+          <input aria-label="Message VaultBot" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask VaultBot…" className="min-w-0 flex-1 bg-muted rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+          <Button type="submit" className="rounded-full px-5">Send</Button>
         </form>
       </section>
+      <Link to="/services" className="relative my-5 text-xs text-muted-foreground underline underline-offset-4">Services & packages</Link>
     </main>
   );
 }
@@ -318,19 +322,19 @@ function DropdownBooking({ onClose, onResult }: { onClose: () => void; onResult:
   const lbl = "block space-y-1.5 text-sm font-medium text-foreground";
   const fld = "w-full h-11 bg-muted rounded-xl px-4 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-60";
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 space-y-4 max-w-md">
+    <div className="vaultbot-booking px-5 sm:px-8 pb-6 space-y-4 w-full">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-semibold tracking-[0.2em] text-primary">THE BEAUTY VAULT</p>
         <span className="rounded-full bg-success text-success-foreground text-[11px] px-2.5 py-0.5">Booking preview</span>
       </div>
-      <div><h2 className="text-xl font-semibold text-foreground">Book your appointment</h2><p className="text-sm text-muted-foreground">Your Beauty. Your Time. Your Vault.</p></div>
+      <div className="text-center"><h2 className="font-display text-2xl text-foreground">Book your appointment</h2></div>
       <label className={lbl}><span>1. Choose your branch</span><select aria-label="Branch" className={fld} value={f.branch} onChange={(e) => set("branch", e.target.value)}><option value="">Select branch</option>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select></label>
       <label className={lbl}><span>2. Choose your service</span><select aria-label="Service" className={fld} value={f.service} onChange={(e) => set("service", e.target.value)}><option value="">Select service</option>{PRICED.map((s) => <option key={s}>{s}</option>)}</select></label>
       <label className={lbl}><span>3. Choose appointment date</span><input aria-label="Date" type="date" min={today} max={visitDateLabel("Saturday") > visitDateLabel("Tomorrow") ? visitDateLabel("Saturday") : visitDateLabel("Tomorrow")} className={fld} value={f.date} onChange={(e) => set("date", e.target.value)} /></label>
       {f.date && !label && <p className="text-xs text-muted-foreground">Bookings are open for today, tomorrow and this Saturday only.</p>}
       <label className={lbl}><span>4. Available appointment time</span><select aria-label="Time" className={fld} value={f.time} disabled={!free.length} onChange={(e) => set("time", e.target.value)}><option value="">{f.branch && label && !free.length ? "Fully booked" : "Select available time"}</option>{free.map((t) => <option key={t}>{t}</option>)}</select></label>
       {!review ? (
-        <button disabled={!ready} onClick={() => setReview(true)} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium disabled:bg-muted disabled:text-muted-foreground">Review booking</button>
+        <Button disabled={!ready} onClick={() => setReview(true)} className="w-full h-11 rounded-lg disabled:bg-muted disabled:text-muted-foreground">Review booking</Button>
       ) : (
         <div className="space-y-3">
           <div className="bg-secondary rounded-xl p-3 text-sm space-y-0.5">
@@ -341,10 +345,10 @@ function DropdownBooking({ onClose, onResult }: { onClose: () => void; onResult:
           <input aria-label="Full name" placeholder="Full name" className={fld} value={f.name} onChange={(e) => setF((o) => ({ ...o, name: e.target.value }))} />
           <input aria-label="Mobile number" placeholder="SA mobile e.g. 0821234567" className={fld} value={f.phone} onChange={(e) => setF((o) => ({ ...o, phone: e.target.value }))} />
           <input aria-label="Email" type="email" placeholder="Email (optional)" className={fld} value={f.email} onChange={(e) => setF((o) => ({ ...o, email: e.target.value }))} />
-          <button disabled={busy || !complete} onClick={verify} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium disabled:bg-muted disabled:text-muted-foreground">{busy ? "Sending…" : "Send verification code"}</button>
+          <Button disabled={busy || !complete} onClick={verify} className="w-full h-11 rounded-lg disabled:bg-muted disabled:text-muted-foreground">{busy ? "Sending…" : "Send verification code"}</Button>
         </div>
       )}
-      <button onClick={onClose} className="text-xs underline text-muted-foreground">Close</button>
+      <Button variant="link" size="sm" onClick={onClose} className="mx-auto flex text-xs text-muted-foreground">Close</Button>
     </div>
   );
 }
