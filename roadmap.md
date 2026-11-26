@@ -5,3 +5,4 @@
 - [x] Simulated notifications, human support requests
 - [x] Typed booking, cancel and reschedule requests
 - [x] Automatic reminders (daily, simulated SMS)
+- [ ] Real booking and management SMS OTP (5-minute expiry, one use, 60-second resend, 3 attempts); blocked by missing Twilio SMS sender and test recipient.
