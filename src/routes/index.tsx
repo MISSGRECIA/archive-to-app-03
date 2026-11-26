@@ -271,28 +271,37 @@ function DropdownBooking({ onClose, onResult }: { onClose: () => void; onResult:
     catch { onResult("Sorry, I couldn't reach the verification service."); }
     setBusy(false);
   }
+  const ready = f.branch && f.service && f.time && free.includes(f.time);
+  const lbl = "block space-y-1.5 text-sm font-medium text-foreground";
+  const fld = "w-full h-11 bg-muted rounded-xl px-4 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-60";
   return (
-    <div className="border border-primary rounded-xl p-4 space-y-3 text-sm">
-      <label className="block">1. Branch<select aria-label="Branch" className={cls} value={f.branch} onChange={(e) => set("branch", e.target.value)}><option value="">Select branch</option>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select></label>
-      <label className="block">2. Service / package<select aria-label="Service" className={cls} value={f.service} onChange={(e) => set("service", e.target.value)}><option value="">Select service</option>{PRICED.map((s) => <option key={s}>{s}</option>)}</select></label>
-      <label className="block">3. Date<input aria-label="Date" type="date" min={today} className={cls} value={f.date} onChange={(e) => set("date", e.target.value)} /></label>
-      {f.date && !label && <p className="text-muted-foreground">Bookings are open for today, tomorrow and this Saturday only.</p>}
-      <label className="block">4. Time<select aria-label="Time" className={cls} value={f.time} disabled={!free.length} onChange={(e) => set("time", e.target.value)}><option value="">{f.branch && label && !free.length ? "Fully booked" : "Select time"}</option>{free.map((t) => <option key={t}>{t}</option>)}</select></label>
-      <label className="block">5. Full name<input aria-label="Full name" className={cls} value={f.name} onChange={(e) => set("name", e.target.value)} /></label>
-      <label className="block">SA mobile number<input aria-label="Mobile number" className={cls} value={f.phone} placeholder="0821234567" onChange={(e) => set("phone", e.target.value)} /></label>
-      <label className="block">Email (optional)<input aria-label="Email" type="email" className={cls} value={f.email} onChange={(e) => set("email", e.target.value)} /></label>
-      {review && complete ? (
-        <div className="bg-secondary rounded-lg p-3 space-y-1">
-          <p className="font-medium">6. Booking summary</p>
-          <p>{f.branch} · {f.service.split(" — ")[0]} · {f.service.split(" — ")[1] ?? ""}</p>
-          <p>{f.date} ({label}) at {f.time}</p>
-          <p>{f.name.trim()} · {phone}{f.email ? ` · ${f.email}` : ""}</p>
-          <button disabled={busy} onClick={verify} className="mt-2 rounded-full bg-primary text-primary-foreground px-4 py-1.5">{busy ? "Sending…" : "Send verification code"}</button>
-        </div>
+    <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 space-y-4 max-w-md">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold tracking-[0.2em] text-primary">THE BEAUTY VAULT</p>
+        <span className="rounded-full bg-success text-success-foreground text-[11px] px-2.5 py-0.5">Booking preview</span>
+      </div>
+      <div><h2 className="text-xl font-semibold text-foreground">Book your appointment</h2><p className="text-sm text-muted-foreground">Your Beauty. Your Time. Your Vault.</p></div>
+      <label className={lbl}><span>1. Choose your branch</span><select aria-label="Branch" className={fld} value={f.branch} onChange={(e) => set("branch", e.target.value)}><option value="">Select branch</option>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select></label>
+      <label className={lbl}><span>2. Choose your service</span><select aria-label="Service" className={fld} value={f.service} onChange={(e) => set("service", e.target.value)}><option value="">Select service</option>{PRICED.map((s) => <option key={s}>{s}</option>)}</select></label>
+      <label className={lbl}><span>3. Choose appointment date</span><input aria-label="Date" type="date" min={today} max={visitDateLabel("Saturday") > visitDateLabel("Tomorrow") ? visitDateLabel("Saturday") : visitDateLabel("Tomorrow")} className={fld} value={f.date} onChange={(e) => set("date", e.target.value)} /></label>
+      {f.date && !label && <p className="text-xs text-muted-foreground">Bookings are open for today, tomorrow and this Saturday only.</p>}
+      <label className={lbl}><span>4. Available appointment time</span><select aria-label="Time" className={fld} value={f.time} disabled={!free.length} onChange={(e) => set("time", e.target.value)}><option value="">{f.branch && label && !free.length ? "Fully booked" : "Select available time"}</option>{free.map((t) => <option key={t}>{t}</option>)}</select></label>
+      {!review ? (
+        <button disabled={!ready} onClick={() => setReview(true)} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium disabled:bg-muted disabled:text-muted-foreground">Review booking</button>
       ) : (
-        <button disabled={!complete} onClick={() => setReview(true)} className="rounded-full bg-primary text-primary-foreground px-4 py-1.5 disabled:opacity-40">Review booking</button>
+        <div className="space-y-3">
+          <div className="bg-secondary rounded-xl p-3 text-sm space-y-0.5">
+            <p className="font-medium">Booking review</p>
+            <p>{f.branch} · {f.service}</p>
+            <p>{f.date} ({label}) at {f.time}</p>
+          </div>
+          <input aria-label="Full name" placeholder="Full name" className={fld} value={f.name} onChange={(e) => setF((o) => ({ ...o, name: e.target.value }))} />
+          <input aria-label="Mobile number" placeholder="SA mobile e.g. 0821234567" className={fld} value={f.phone} onChange={(e) => setF((o) => ({ ...o, phone: e.target.value }))} />
+          <input aria-label="Email" type="email" placeholder="Email (optional)" className={fld} value={f.email} onChange={(e) => setF((o) => ({ ...o, email: e.target.value }))} />
+          <button disabled={busy || !complete} onClick={verify} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium disabled:bg-muted disabled:text-muted-foreground">{busy ? "Sending…" : "Send verification code"}</button>
+        </div>
       )}
-      <button onClick={onClose} className="ml-3 text-xs underline text-muted-foreground">Close</button>
+      <button onClick={onClose} className="text-xs underline text-muted-foreground">Close</button>
     </div>
   );
 }
