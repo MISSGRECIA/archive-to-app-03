@@ -4,6 +4,13 @@ const db = async () => (await import("@/integrations/supabase/client.server")).s
 const phoneOk = (p: string) => /^0[6-8]\d{8}$/.test(p);
 const clean = (v: string, n: number) => v.replace(/[<>]/g, "").trim().slice(0, n);
 const newToken = () => crypto.randomUUID();
+// Turns the day label offered in chat into a real calendar date (South African time).
+export const visitDate = (label: string, now = new Date()) => {
+  const d = new Date(now.getTime() + 2 * 3600000);
+  const add = label === "Tomorrow" ? 1 : label === "Saturday" ? (6 - d.getUTCDay() + 7) % 7 : 0;
+  d.setUTCDate(d.getUTCDate() + add);
+  return d.toISOString().slice(0, 10);
+};
 type DB = Awaited<ReturnType<typeof db>>;
 
 async function phoneFor(sb: DB, token: string) {
@@ -48,9 +55,10 @@ export const bookSlot = createServerFn({ method: "POST" })
       throw new Error("Booking failed. Please try again.");
     }
     if (data !== true) return { ok: false, msg: "" };
+    if (d.skip) await sb.from("bookings").update({ visit_date: visitDate(d.date), reminded_at: null }).eq("id", d.skip);
     if (d.skip) return { ok: true, msg: await notify(sb, d.skip, "rescheduled", `Your booking ${d.skip} is now ${d.date} at ${d.time}.`) };
     const token = newToken();
-    await sb.from("bookings").update({ session_token: token, session_expires: new Date(Date.now() + 15 * 60000).toISOString() }).eq("id", d.id);
+    await sb.from("bookings").update({ visit_date: visitDate(d.date), session_token: token, session_expires: new Date(Date.now() + 15 * 60000).toISOString() }).eq("id", d.id);
     const msg = await notify(sb, d.id, "confirmation", `Confirmed: ${d.service}, ${d.branch}, ${d.date} ${d.time}. Ref ${d.id}. Reminder will be sent 24h before.`);
     return { ok: true, msg, token };
   });

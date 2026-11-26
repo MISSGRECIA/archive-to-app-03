@@ -27,10 +27,12 @@ export type Database = {
           otp_sent_at: string | null
           paid: boolean
           phone: string
+          reminded_at: string | null
           service: string
           session_expires: string | null
           session_token: string | null
           time: string
+          visit_date: string | null
         }
         Insert: {
           branch: string
@@ -44,10 +46,12 @@ export type Database = {
           otp_sent_at?: string | null
           paid?: boolean
           phone: string
+          reminded_at?: string | null
           service: string
           session_expires?: string | null
           session_token?: string | null
           time: string
+          visit_date?: string | null
         }
         Update: {
           branch?: string
@@ -61,10 +65,12 @@ export type Database = {
           otp_sent_at?: string | null
           paid?: boolean
           phone?: string
+          reminded_at?: string | null
           service?: string
           session_expires?: string | null
           session_token?: string | null
           time?: string
+          visit_date?: string | null
         }
         Relationships: []
       }

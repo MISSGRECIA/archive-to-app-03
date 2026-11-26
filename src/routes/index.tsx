@@ -59,6 +59,20 @@ const taken = (d: Partial<Booking>, skip?: string) => {
   return dayTimes(d.date).filter((t) => cap === 0 || used.filter((u) => u === t).length >= cap);
 };
 let session = "";
+const WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+// Reads a typed request like "book me a facial on Friday in Durban".
+function parseRequest(l: string, now = new Date()) {
+  const service = [...ALL].sort((a, b) => b.length - a.length).find((x) => l.includes(x.toLowerCase().replace(/ \(.*\)/, ""))) ?? (l.includes("nails") ? "Gel nails" : l.includes("haircut") ? "Men's haircut" : l.includes("massage") ? "Massage (60 min)" : undefined);
+  const branch = BRANCHES.find((b) => l.includes(b.toLowerCase())) ?? (l.includes("joburg") || l.includes("jhb") ? "Johannesburg" : l.includes("cpt") ? "Cape Town" : undefined);
+  const today = new Date(now.getTime() + 2 * 3600000).getUTCDay();
+  let date: string | undefined; let dayNote: string | undefined;
+  if (l.includes("tomorrow")) date = "Tomorrow"; else if (l.includes("today")) date = "Today";
+  else { const w = WEEK.findIndex((x) => l.includes(x)); if (w >= 0) {
+    if (w === today) date = "Today"; else if (w === (today + 1) % 7) date = "Tomorrow"; else if (w === 6) date = "Saturday";
+    else dayNote = `I can currently book Today, Tomorrow or this Saturday — ${WEEK[w]![0]!.toUpperCase() + WEEK[w]!.slice(1)} isn't open for bookings yet.`;
+  } }
+  return { service, branch, date, dayNote };
+}
 const MENU = ["Book appointment", "My bookings", "View services", "Packages", "FAQs", "Talk to a human"];
 
 function Index() {
@@ -99,7 +113,7 @@ function Index() {
           return bot(`${v}:\n` + DIVS[v]!.map((x) => `• ${x} · ${DUR[x.split(" — ")[0]!] ?? "60 min"}`).join("\n") + "\nWhich would you like?", DIVS[v]!.map((x) => x.split(" — ")[0]!));
         }
         case "service": { const v = pick(t, ALL); if (!v) return bot("Please choose a listed service.", ALL); setDraft({ ...d, service: v, step: "branch" }); return bot("Which branch?", BRANCHES); }
-        case "branch": { const v = pick(t, BRANCHES); if (!v) return bot("Please choose a branch.", BRANCHES); setDraft({ ...d, branch: v, step: "date" }); return bot("Which day?", DAYS); }
+        case "branch": { const v = pick(t, BRANCHES); if (!v) return bot("Please choose a branch.", BRANCHES); if (d.date) { const free = dayTimes(d.date).filter((x) => !taken({ ...d, branch: v }).includes(x)); if (free.length) { setDraft({ ...d, branch: v, step: "time" }); return bot(`Available at ${v} on ${d.date}:`, free); } } setDraft({ ...d, branch: v, step: "date" }); return bot("Which day?", DAYS); }
         case "date": {
           const v = pick(t, DAYS); if (!v) return bot("Please choose a day.", DAYS);
           const free = dayTimes(v).filter((x) => !taken({ ...d, date: v }, d.target).includes(x));
@@ -157,7 +171,26 @@ function Index() {
           setDraft({ ...b, step: "date", target: b.id }); return bot(`New day for ${b.service}?`, DAYS);
         }
       }
-      if (l.includes("book") && !l.includes("my")) { setDraft({ step: "division" }); return bot("Which division?", Object.keys(DIVS)); }
+      const ref = t.match(/BV\d{5}/i)?.[0]?.toUpperCase();
+      if (ref && /cancel|reschedul|move|change|my booking/.test(l)) {
+        const r = await requestOtp({ data: { ref } });
+        if (!r.ok) return bot(r.reason, MENU);
+        setDraft({ step: "otp2", target: ref });
+        return bot(`📱 SIMULATED SMS to ${r.masked}: your Vault code is ${r.code}. Enter it to see booking ${ref} and cancel or reschedule it.`);
+      }
+      const req = parseRequest(l);
+      if (req.service || (l.includes("book") && !l.includes("my"))) {
+        if (!req.service) { setDraft({ step: "division" }); return bot("Which division?", Object.keys(DIVS)); }
+        const nd: Draft = { service: req.service };
+        if (req.dayNote) bot(req.dayNote);
+        if (!req.branch) { setDraft({ ...nd, ...(req.date ? { date: req.date } : {}), step: "branch" }); return bot(`${req.service}${req.date ? ` on ${req.date}` : ""} — which branch?`, BRANCHES); }
+        nd.branch = req.branch;
+        if (!req.date) { setDraft({ ...nd, step: "date" }); return bot(`${req.service} at ${req.branch} — which day?`, DAYS); }
+        const day = req.date;
+        const free = dayTimes(day).filter((x) => !taken({ ...nd, date: day }).includes(x));
+        if (!free.length) { setDraft({ ...nd, step: "date" }); return bot(`${day} is fully booked at ${req.branch}. Try another day.`, DAYS); }
+        setDraft({ ...nd, date: day, step: "time" }); return bot(`${req.service} at ${req.branch} on ${day}. Available times:`, free);
+      }
       if (l.includes("my booking") || l.includes("cancel") || l.includes("reschedul")) { setDraft({ step: "lookup" }); return bot("Please enter your booking reference (e.g. BV12345). I'll send a verification code to the number on the booking."); }
       if (l.includes("service") || l.includes("price")) return bot(Object.entries(SERVICES).map(([k, v]) => `${k}: ${v.join(", ")}`).join("\n\n"), ["Book appointment"]);
       if (l.includes("package")) return bot("Signature packages:\n" + PACKAGES.map((p) => "• " + p).join("\n"), ["Book appointment"]);
