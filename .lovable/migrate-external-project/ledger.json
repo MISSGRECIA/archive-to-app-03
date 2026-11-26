@@ -1,0 +1,6 @@
+[{"capability":"code","source":"archive src/","outcome":"migrate","status":"verified","next_action":"copy routes/lib/ui"},
+{"capability":"schema","source":"drizzle migrations (bookings, notifications, support_requests, book_slot)","outcome":"migrate","status":"verified","next_action":"apply to Lovable Cloud"},
+{"capability":"records","source":"old Cloud DB","outcome":"migrate","status":"pending","next_action":"user exports bookings/notifications/support_requests CSV"},
+{"capability":"auth","source":"none (guest OTP flow by booking ref)","outcome":"not_applicable","status":"verified","next_action":"none"},
+{"capability":"ai","source":"Lovable AI gateway (VaultBot)","outcome":"preserve","status":"verified","next_action":"verify LOVABLE_API_KEY"},
+{"capability":"secrets","source":".env supabase values (platform)","outcome":"replace","status":"verified","next_action":"new Cloud provisions"}]
