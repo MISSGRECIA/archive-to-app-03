@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { askVaultBot } from "@/lib/vaultbot.functions";
-import { getSlots, getMine, requestOtp, verifyOtp, bookSlot, payDeposit, cancelBooking, requestHuman } from "@/lib/bookings.functions";
+import { getSlots, getMine, requestOtp, verifyOtp, bookSlot, payDeposit, cancelBooking, requestHuman, sendBookingOtp } from "@/lib/bookings.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -73,7 +73,7 @@ function parseRequest(l: string, now = new Date()) {
   } }
   return { service, branch, date, dayNote };
 }
-const MENU = ["Book appointment", "My bookings", "View services", "Packages", "FAQs", "Talk to a human"];
+const MENU = ["Book with dropdowns", "Book appointment", "My bookings", "View services", "Packages", "FAQs", "Talk to a human"];
 
 function Index() {
   const [msgs, setMsgs] = useState<Msg[]>([
@@ -81,6 +81,7 @@ function Index() {
   ]);
   const [input, setInput] = useState("");
   const [draft, setDraft] = useState<Draft>({});
+  const [form, setForm] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
@@ -105,6 +106,7 @@ function Index() {
     const d: Draft = { ...draft };
     setTimeout(async () => { try {
       await refresh();
+      if (l === "book with dropdowns") { setForm(true); return bot("Fill in the booking form below 👇"); }
       if (l === "menu") { setDraft({}); return bot("How else can I help?", MENU); }
       switch (d.step) {
         case "division": {
@@ -229,6 +231,7 @@ function Index() {
               )}
             </div>
           ))}
+          {form && <DropdownBooking onClose={() => setForm(false)} onResult={(t) => bot(t, MENU)} />}
           <div ref={end} />
         </div>
         <form onSubmit={(e) => { e.preventDefault(); handle(input); }} className="p-3 border-t border-border flex gap-2">
@@ -237,5 +240,59 @@ function Index() {
         </form>
       </section>
     </main>
+  );
+}
+
+// Turns a picked calendar date into the day labels the staff roster uses (Today / Tomorrow / Saturday).
+const labelFor = (iso: string) => DAYS.find((d) => visitDateLabel(d) === iso);
+const visitDateLabel = (label: string) => {
+  const d = new Date(Date.now() + 2 * 3600000);
+  d.setUTCDate(d.getUTCDate() + (label === "Tomorrow" ? 1 : label === "Saturday" ? (6 - d.getUTCDay() + 7) % 7 : 0));
+  return d.toISOString().slice(0, 10);
+};
+const PRICED = [...PACKAGES.map((p) => p.replace(/ \(.*\)/, "")), ...Object.entries(SERVICES).filter(([k]) => k !== "Beauty Boutique").flatMap(([, v]) => v)];
+
+function DropdownBooking({ onClose, onResult }: { onClose: () => void; onResult: (t: string) => void }) {
+  const [f, setF] = useState({ branch: "", service: "", date: "", time: "", name: "", phone: "", email: "" });
+  const [review, setReview] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => { void refresh().then(() => tick((n) => n + 1)); }, [f.branch, f.date]);
+  const label = f.date ? labelFor(f.date) : undefined;
+  const free = f.branch && label ? dayTimes(label).filter((x) => !taken({ branch: f.branch, date: label }).includes(x)) : [];
+  const set = (k: keyof typeof f, v: string) => { setReview(false); setF((o) => ({ ...o, [k]: v, ...(k === "branch" || k === "date" ? { time: "" } : {}) })); };
+  const phone = f.phone.replace(/\s/g, "");
+  const complete = f.branch && f.service && f.time && free.includes(f.time) && f.name.trim().length >= 2 && /^0[6-8]\d{8}$/.test(phone) && (!f.email || /^\S+@\S+\.\S+$/.test(f.email));
+  const cls = "w-full bg-muted rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
+  const today = visitDateLabel("Today");
+  async function verify() {
+    setBusy(true);
+    try { const r = await sendBookingOtp({ data: { phone } }); if (!r.ok) onResult(`⚠️ ${r.reason}`); }
+    catch { onResult("Sorry, I couldn't reach the verification service."); }
+    setBusy(false);
+  }
+  return (
+    <div className="border border-primary rounded-xl p-4 space-y-3 text-sm">
+      <label className="block">1. Branch<select aria-label="Branch" className={cls} value={f.branch} onChange={(e) => set("branch", e.target.value)}><option value="">Select branch</option>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select></label>
+      <label className="block">2. Service / package<select aria-label="Service" className={cls} value={f.service} onChange={(e) => set("service", e.target.value)}><option value="">Select service</option>{PRICED.map((s) => <option key={s}>{s}</option>)}</select></label>
+      <label className="block">3. Date<input aria-label="Date" type="date" min={today} className={cls} value={f.date} onChange={(e) => set("date", e.target.value)} /></label>
+      {f.date && !label && <p className="text-muted-foreground">Bookings are open for today, tomorrow and this Saturday only.</p>}
+      <label className="block">4. Time<select aria-label="Time" className={cls} value={f.time} disabled={!free.length} onChange={(e) => set("time", e.target.value)}><option value="">{f.branch && label && !free.length ? "Fully booked" : "Select time"}</option>{free.map((t) => <option key={t}>{t}</option>)}</select></label>
+      <label className="block">5. Full name<input aria-label="Full name" className={cls} value={f.name} onChange={(e) => set("name", e.target.value)} /></label>
+      <label className="block">SA mobile number<input aria-label="Mobile number" className={cls} value={f.phone} placeholder="0821234567" onChange={(e) => set("phone", e.target.value)} /></label>
+      <label className="block">Email (optional)<input aria-label="Email" type="email" className={cls} value={f.email} onChange={(e) => set("email", e.target.value)} /></label>
+      {review && complete ? (
+        <div className="bg-secondary rounded-lg p-3 space-y-1">
+          <p className="font-medium">6. Booking summary</p>
+          <p>{f.branch} · {f.service.split(" — ")[0]} · {f.service.split(" — ")[1] ?? ""}</p>
+          <p>{f.date} ({label}) at {f.time}</p>
+          <p>{f.name.trim()} · {phone}{f.email ? ` · ${f.email}` : ""}</p>
+          <button disabled={busy} onClick={verify} className="mt-2 rounded-full bg-primary text-primary-foreground px-4 py-1.5">{busy ? "Sending…" : "Send verification code"}</button>
+        </div>
+      ) : (
+        <button disabled={!complete} onClick={() => setReview(true)} className="rounded-full bg-primary text-primary-foreground px-4 py-1.5 disabled:opacity-40">Review booking</button>
+      )}
+      <button onClick={onClose} className="ml-3 text-xs underline text-muted-foreground">Close</button>
+    </div>
   );
 }

@@ -117,3 +117,18 @@ export const requestHuman = createServerFn({ method: "POST" })
     await (await db()).from("support_requests").insert(data);
     return { ok: true };
   });
+
+// Real SMS code for the dropdown booking form. Sends only when a Twilio SMS sender number exists; never simulates.
+export const sendBookingOtp = createServerFn({ method: "POST" })
+  .inputValidator((i: { phone: string }) => ({ phone: clean(i.phone, 10) }))
+  .handler(async ({ data }) => {
+    if (!phoneOk(data.phone)) return { ok: false as const, reason: "Please enter a valid SA mobile number." };
+    const lk = process.env["LOVABLE_API_KEY"], tk = process.env["TWILIO_API_KEY"];
+    if (!lk || !tk) return { ok: false as const, reason: "SMS verification isn't set up: the Twilio connection is missing." };
+    const h = { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": tk };
+    const res = await fetch("https://connector-gateway.lovable.dev/twilio/IncomingPhoneNumbers.json", { headers: h });
+    const nums = res.ok ? ((await res.json()) as { incoming_phone_numbers?: { phone_number: string; capabilities?: { sms?: boolean } }[] }).incoming_phone_numbers ?? [] : [];
+    const from = nums.find((n) => n.capabilities?.sms)?.phone_number;
+    if (!from) return { ok: false as const, reason: "SMS verification isn't set up yet: the Twilio account has no SMS sending number, so no code can be sent and the booking can't be confirmed." };
+    return { ok: false as const, reason: "An SMS sender was found, but real code delivery hasn't been switched on yet." };
+  });
