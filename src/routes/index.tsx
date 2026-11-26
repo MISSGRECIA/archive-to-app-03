@@ -82,7 +82,7 @@ function Index() {
   const [input, setInput] = useState("");
   const [draft, setDraft] = useState<Draft>({});
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs]);
+  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
   const bot = (text: string, chips?: string[]) => setMsgs((m) => [...m, { from: "bot", text, ...(chips ? { chips } : {}) }]);
   const pick = (t: string, opts: string[]) => opts.find((o) => o.toLowerCase() === t.toLowerCase());
