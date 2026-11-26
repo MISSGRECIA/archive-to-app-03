@@ -26,7 +26,7 @@ function Services() {
   return (
     <main className="min-h-screen bg-background px-5 py-10">
       <div className="mx-auto max-w-4xl">
-        <Link to="/" className="text-sm text-primary">← Back to VaultBot</Link>
+        <Link to="/vaultbot" className="text-sm text-primary">← Back to VaultBot</Link>
         <h1 className="mt-4 font-display text-4xl text-foreground">Services & Packages</h1>
         <p className="mt-2 text-sm text-muted-foreground">Demo prices. Cape Town · Johannesburg · Durban.</p>
         <div className="mt-8 grid gap-5 sm:grid-cols-2">
@@ -40,7 +40,7 @@ function Services() {
         <section className="mt-10 rounded-2xl border border-border bg-card p-6">
           <h2 className="font-display text-2xl text-foreground">Visit us</h2>
           <p className="mt-2 text-sm text-muted-foreground">Mon–Fri 08:00–19:00 · Sat 08:00–17:00 · Sun 09:00–14:00. R100 deposit secures bookings; refundable 24h before. Earn Vault loyalty points on every visit.</p>
-          <Link to="/" className="mt-4 inline-block rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground">Book with VaultBot</Link>
+          <Link to="/vaultbot" className="mt-4 inline-block rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground">Book with VaultBot</Link>
         </section>
       </div>
     </main>

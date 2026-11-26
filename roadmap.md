@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Gold cover entry page with a direct Book your appointment link to VaultBot
 - [x] Shared bookings database
 - [x] Booking reference + OTP (expiry, attempts, resend wait, verified session)
 - [x] Division-first flow, durations, loyalty

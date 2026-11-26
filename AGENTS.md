@@ -29,3 +29,4 @@ use the editor.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
 - Booking data is only accessed through server functions in src/lib/bookings.functions.ts using the admin client; tables have RLS on with no public policies, and private reads require an OTP-issued session token. Why: guest-first app with no sign-in.
+- Keep the visual entry page at / and the existing chat at /vaultbot; use typed Links for entry buttons so the cover never duplicates booking logic.

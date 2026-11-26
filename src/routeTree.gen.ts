@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ServicesRouteImport } from './routes/services'
+import { Route as VaultbotRouteImport } from './routes/vaultbot'
 import { Route as ApiPublicJobsSendRemindersRouteImport } from './routes/api/public/jobs/send-reminders'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const ServicesRoute = ServicesRouteImport.update({
   path: '/services',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VaultbotRoute = VaultbotRouteImport.update({
+  id: '/vaultbot',
+  path: '/vaultbot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsSendRemindersRoute =
   ApiPublicJobsSendRemindersRouteImport.update({
     id: '/api/public/jobs/send-reminders',
@@ -33,30 +39,39 @@ const ApiPublicJobsSendRemindersRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/services': typeof ServicesRoute
+  '/vaultbot': typeof VaultbotRoute
   '/api/public/jobs/send-reminders': typeof ApiPublicJobsSendRemindersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/services': typeof ServicesRoute
+  '/vaultbot': typeof VaultbotRoute
   '/api/public/jobs/send-reminders': typeof ApiPublicJobsSendRemindersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/services': typeof ServicesRoute
+  '/vaultbot': typeof VaultbotRoute
   '/api/public/jobs/send-reminders': typeof ApiPublicJobsSendRemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/services' | '/api/public/jobs/send-reminders'
+  fullPaths: '/' | '/services' | '/vaultbot' | '/api/public/jobs/send-reminders'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/services' | '/api/public/jobs/send-reminders'
-  id: '__root__' | '/' | '/services' | '/api/public/jobs/send-reminders'
+  to: '/' | '/services' | '/vaultbot' | '/api/public/jobs/send-reminders'
+  id:
+    | '__root__'
+    | '/'
+    | '/services'
+    | '/vaultbot'
+    | '/api/public/jobs/send-reminders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ServicesRoute: typeof ServicesRoute
+  VaultbotRoute: typeof VaultbotRoute
   ApiPublicJobsSendRemindersRoute: typeof ApiPublicJobsSendRemindersRoute
 }
 
@@ -76,6 +91,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vaultbot': {
+      id: '/vaultbot'
+      path: '/vaultbot'
+      fullPath: '/vaultbot'
+      preLoaderRoute: typeof VaultbotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/send-reminders': {
       id: '/api/public/jobs/send-reminders'
       path: '/api/public/jobs/send-reminders'
@@ -89,6 +111,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ServicesRoute: ServicesRoute,
+  VaultbotRoute: VaultbotRoute,
   ApiPublicJobsSendRemindersRoute: ApiPublicJobsSendRemindersRoute,
 }
 export const routeTree = rootRouteImport
