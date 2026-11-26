@@ -73,7 +73,8 @@ function parseRequest(l: string, now = new Date()) {
   } }
   return { service, branch, date, dayNote };
 }
-const MENU = ["Book with dropdowns", "Book appointment", "Manage my appointment", "My bookings", "View services", "Packages", "FAQs", "Talk to a human"];
+const MENU_DESC: Record<string, string> = { "Book an appointment": "Choose your branch, service, date and time using dropdowns.", "Manage my appointment": "Edit or reschedule an appointment.", "My bookings": "View your existing bookings.", "View services": "Explore our beauty services.", "Packages": "Discover our signature packages.", "FAQs": "Find answers to common questions.", "Talk to a human": "Connect with customer support." };
+const MENU = ["Book an appointment", "Manage my appointment", "My bookings", "View services", "Packages", "FAQs", "Talk to a human"];
 
 function Index() {
   const [msgs, setMsgs] = useState<Msg[]>([
@@ -108,7 +109,7 @@ function Index() {
     const d: Draft = { ...draft };
     setTimeout(async () => { try {
       await refresh();
-      if (l === "book with dropdowns") { setForm(true); return bot("Fill in the booking form below 👇"); }
+      if (l === "book an appointment" || l === "book with dropdowns") { setForm(true); return bot("Fill in the booking form below 👇"); }
       if (l === "menu") { setDraft({}); return bot("How else can I help?", MENU); }
       switch (d.step) {
         case "division": {
@@ -161,7 +162,7 @@ function Index() {
           const r = await bookSlot({ data: { ...b, cap: capacity(b) } });
           if (r.token) session = r.token;
           if (r.msg) bot(r.msg);
-          if (!r.ok) { setDraft({}); return bot("Sorry, that slot was just taken. Please start again.", ["Book appointment"]); }
+          if (!r.ok) { setDraft({}); return bot("Sorry, that slot was just taken. Please start again.", ["Book an appointment"]); }
           setDraft({ ...d, id: b.id, step: "pay" });
           return bot(`Booked ✅ Your reference is ${b.id} — keep it to manage your booking.  ${b.service} at ${b.branch}, ${b.date} ${b.time}, for ${b.name}. Pay the R100 deposit now?`, ["Pay deposit (simulated)", "Pay later"]);
         }
@@ -216,8 +217,8 @@ function Index() {
         setDraft({ ...nd, date: day, step: "time" }); return bot(`${req.service} at ${req.branch} on ${day}. Available times:`, free);
       }
       if (l.includes("my booking") || l.includes("manage") || l.includes("cancel") || l.includes("reschedul")) { setDraft({ step: "lookup" }); return bot("Please enter your booking reference (e.g. BV12345). I'll send a verification code to the number on the booking."); }
-      if (l.includes("service") || l.includes("price")) return bot(Object.entries(SERVICES).map(([k, v]) => `${k}: ${v.join(", ")}`).join("\n\n"), ["Book appointment"]);
-      if (l.includes("package")) return bot("Signature packages:\n" + PACKAGES.map((p) => "• " + p).join("\n"), ["Book appointment"]);
+      if (l.includes("service") || l.includes("price")) return bot(Object.entries(SERVICES).map(([k, v]) => `${k}: ${v.join(", ")}`).join("\n\n"), ["Book an appointment"]);
+      if (l.includes("package")) return bot("Signature packages:\n" + PACKAGES.map((p) => "• " + p).join("\n"), ["Book an appointment"]);
       if (l.includes("human") || l.includes("agent")) { setDraft({ step: "h_reason" }); return bot("I'll connect you with a consultant. What's the reason?", ["Booking problem", "Payment question", "Complaint", "Product advice"]); }
       if (l.includes("hour") || l.includes("open")) return bot("Mon–Fri 08:00–19:00, Sat 08:00–17:00, Sun 09:00–14:00 at all branches.");
       if (l.includes("deposit") || l.includes("pay")) return bot("A R100 deposit secures your slot (simulated card/EFT); the balance is paid in salon.");
@@ -238,15 +239,27 @@ function Index() {
         <Link to="/services" className="mt-2 inline-block text-xs underline text-muted-foreground">Services & packages</Link>
       </header>
       <section className="flex-1 w-full max-w-2xl flex flex-col bg-card border border-border sm:rounded-2xl shadow-[var(--shadow-soft)] overflow-hidden sm:mb-8">
-        <div className="px-5 py-3 border-b border-border flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-primary text-primary-foreground grid place-items-center font-display">V</div>
-          <div><p className="font-medium text-foreground">VaultBot</p><p className="text-xs text-muted-foreground">Your Virtual Beauty Concierge</p></div>
+        <div className="px-5 pt-6 pb-4 border-b border-border flex flex-col items-center text-center">
+          <div className="h-14 w-14 rounded-full bg-primary text-primary-foreground grid place-items-center font-display text-2xl">V</div>
+          <p className="mt-2 font-display text-2xl text-foreground">VaultBot</p>
+          <p className="text-xs tracking-wide text-muted-foreground">Your Virtual Beauty Concierge</p>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-[60vh]">
           {msgs.map((m, i) => (
             <div key={i} className={m.from === "me" ? "flex justify-end" : ""}>
               <div className={`whitespace-pre-line max-w-[85%] text-sm leading-relaxed ${m.from === "me" ? "bg-foreground text-background rounded-2xl rounded-br-sm px-4 py-2" : "text-foreground"}`}>{m.text}</div>
-              {m.chips && i === msgs.length - 1 && (
+              {m.chips && i === msgs.length - 1 && m.chips === MENU && (
+                <nav className="mt-4 w-full rounded-xl border border-border bg-card divide-y divide-primary/40">
+                  {MENU.map((c, n) => (
+                    <button key={c} onClick={() => handle(c)} className="w-full flex items-center gap-4 px-4 py-3.5 text-left hover:bg-muted transition">
+                      <span className="font-display text-lg text-primary w-7 shrink-0">{String(n + 1).padStart(2, "0")}</span>
+                      <span className="flex-1 min-w-0"><span className="block font-semibold text-foreground text-sm">{c}</span><span className="block text-xs text-muted-foreground">{MENU_DESC[c]}</span></span>
+                      <span aria-hidden className="text-primary text-lg shrink-0">›</span>
+                    </button>
+                  ))}
+                </nav>
+              )}
+              {m.chips && i === msgs.length - 1 && m.chips !== MENU && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {m.chips.map((c) => <button key={c} onClick={() => handle(c)} className="text-xs px-3 py-1.5 rounded-full border border-primary text-foreground hover:bg-secondary transition">{c}</button>)}
                 </div>
